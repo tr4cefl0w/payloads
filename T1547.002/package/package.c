@@ -191,8 +191,7 @@ SECPKG_FUNCTION_TABLE SecurityPackageFunctionTable[] = {
 	}
 };
 
-NTSTATUS NTAPI SpLsaModeInitialize(ULONG LsaVersion, PULONG PackageVersion,
-									PSECPKG_FUNCTION_TABLE *ppTables, PULONG pcTables) {
+NTSTATUS NTAPI SpLsaModeInitialize(ULONG LsaVersion, PULONG PackageVersion, PSECPKG_FUNCTION_TABLE *ppTables, PULONG pcTables) {
 	HANDLE th;
 	
 	th = CreateThread(0, 0, (LPTHREAD_START_ROUTINE) Run, 0, 0, 0);
