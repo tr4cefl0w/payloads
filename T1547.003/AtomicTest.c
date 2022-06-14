@@ -22,7 +22,7 @@ DWORD dwPollInterval;
 
 void Run(void) {
 
-    CreateFile("c:\\users\\public\\AtomicTest.txt", GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+    CreateFile("c:\\users\\public\\AtomicTest.txt", GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 
     return;
 
