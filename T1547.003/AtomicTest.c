@@ -1,7 +1,8 @@
 /*
    Atomic Test T1547.003
 
-   Author:    traceflow @tr4cefl0w
+   Author:    traceflow
+              https://github.com/tr4cefl0w
 
    Credits:   https://github.com/scottlundgren/w32time
               https://pentestlab.blog/2019/10/22/persistence-time-providers/
@@ -20,13 +21,10 @@ TpcGetSamplesArgs Samples;
 DWORD dwPollInterval;
 
 void Run(void) {
-    STARTUPINFO si = { sizeof(si) };
-    PROCESS_INFORMATION pi;
 
-	CreateProcess(
-				"c:\\windows\\notepad.exe", 
-				"", NULL, NULL, TRUE, 0, NULL, NULL, 
-				&si, &pi);
+    CreateFile("c:\\users\\public\\AtomicTest.txt", GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+
+    return;
 
 }
 
