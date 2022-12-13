@@ -1,0 +1,1 @@
+cl.exe MessageBox.c /W0 /link /out:MessageBox.exe
