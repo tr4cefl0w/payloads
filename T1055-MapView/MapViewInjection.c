@@ -1,3 +1,8 @@
+/*
+    Injector for Atomic Red Team leveraging code injection using NtCreateSection, NtMapViewOfSection and RtlCreateUserThread.
+    Author: traceflow@0x8d.cc
+*/
+
 #include <windows.h>
 #include <stdio.h>
 #include <tlhelp32.h>
