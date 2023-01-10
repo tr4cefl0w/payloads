@@ -1,1 +1,1 @@
-cl.exe MessageBox.c /W0 /link /out:MessageBox.exe
+cl.exe /W0 /TcMessageBox.c /link /SUBSYSTEM:CONSOLE /out:MessageBox.exe

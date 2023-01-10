@@ -36,11 +36,11 @@ int main(int argc, char *argv[]) {
     HANDLE pHandle;
     PVOID pBase;
     PTHREAD_START_ROUTINE pLoadLibrary = NULL;
-    char dllPath[ ] = "C:\\Users\\dev-user\\git\\payloads\\T1055.001\\MessageBoxDLL.dll";
+    char dllPath[ ] = "C:\\Users\\admin\\git\\payloads\\T1055.001\\MessageBoxDLL.dll";
     char target[] = "notepad.exe";
     int pid = 0;
-    
-    printf("Injecting %s", dllPath);
+
+    printf("Injecting %s\n", dllPath);
     
     pid = FindTarget(target);
     if ( pid == 0) {

