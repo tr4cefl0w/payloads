@@ -1,3 +1,9 @@
+/*
+    Port Monitor DLL for T1547.010.
+    Author: traceflow@0x8d.cc
+	        github.com/traceflow
+*/
+
 #include <Windows.h>
 #include <Winsplp.h>
 

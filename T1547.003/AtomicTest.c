@@ -2,7 +2,7 @@
    Atomic Test T1547.003
 
    Author:    traceflow
-              https://github.com/tr4cefl0w
+              https://github.com/traceflow
 
    Credits:   https://github.com/scottlundgren/w32time
               https://pentestlab.blog/2019/10/22/persistence-time-providers/
